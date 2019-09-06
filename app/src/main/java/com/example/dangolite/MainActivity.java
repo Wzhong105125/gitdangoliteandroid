@@ -2,6 +2,7 @@ package com.example.dangolite;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
@@ -34,18 +35,24 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableEntryException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -54,6 +61,8 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import androidx.core.content.ContextCompat;
+import android.system.Os;
+
 
 
 public class MainActivity extends AppCompatActivity {
@@ -75,7 +84,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageView mFingerprintImage;
     public TextView mParaLabel;
     public  static String  ip,port;
-    public static String Information,Read;
+    public static String Information,Read,publickey;
+    static ObservableString newread = new ObservableString();
 
     private FingerprintManager fingerprintManager;
     private KeyguardManager keyguardManager;
@@ -128,8 +138,49 @@ public class MainActivity extends AppCompatActivity {
         Intent goScanner = new Intent();
         goScanner.setClass(MainActivity.this , Main2Activity.class);
         startActivity(goScanner);
+        newread.set(null);
+        newread.setOnStringChangeListener(new OnStringChangeListener() {
+            @Override
+            public void onStringChanged(String newStringvalue) {
+                Log.v("ONStringChanged","EZ"+newStringvalue);
+                File file = new File(MainActivity.this.getFilesDir(),"StoreKey");
+                if(!file.exists())
+                    file.mkdir();
+                if(Information == "C"){
+                    try {
+                        File gpxfile = new File(file,"publickey");
+                        FileWriter fw = new FileWriter(gpxfile);
+                        fw.append(Read);
+                        fw.flush();
+                        fw.close();
+                        Log.v("file writer","write file"+Read);
+                    }catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }else{
+                    try {
+                        File gpxfile = new File(file,"publickey");
+                        StringBuilder text = new StringBuilder();
+                        BufferedReader br = new BufferedReader(new FileReader(file));
+                        String line;
+                        while ((line = br.readLine()) != null) {
+                            text.append(line);
+                            text.append('\n');
+                        }
+                        publickey = text.toString();
+                        Log.v("read file","read"+publickey);
+                        EncryptRead();
+                        br.close();
+                    }catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
 
+            }
+        });
 
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -168,8 +219,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+
+
     }
 
+    private void EncryptRead() {
+
+    }
 
 
     @TargetApi(Build.VERSION_CODES.M)
@@ -230,12 +286,36 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    public interface OnStringChangeListener{
+        public void onStringChanged(String stringvalue);
+    }
 
-    public void setIP(String newip){
-        ip = newip;
+    public static class ObservableString{
+        private OnStringChangeListener listener;
+        private String value;
+        public void setOnStringChangeListener(OnStringChangeListener listener)
+        {
+            this.listener = listener;
+        }
+
+        public String get()
+        {
+            return value;
+        }
+
+        public void set(String value)
+        {
+            this.value = value;
+
+            if(listener != null)
+            {
+                listener.onStringChanged(value);
+            }
+        }
+
     }
-    public void setPORT(String newport){
-        port = newport;
-    }
+
+
+
 
 }

@@ -21,7 +21,7 @@ public class MessageSender extends AsyncTask <String, String ,Void> {
     PrintWriter pw;
     BufferedReader br;
     BufferedWriter bw;
-    String read;
+    String read = null;
 
     @Override
     protected Void doInBackground(String... voids) {
@@ -44,6 +44,10 @@ public class MessageSender extends AsyncTask <String, String ,Void> {
             Log.e("OutPut:","output 123");
             read = br.readLine();
             Log.e("input",read);
+
+            MainActivity.Read = read;
+            MainActivity.newread.set(read);
+            Log.v("new read value",MainActivity.newread.get());
             pw.close();
             br.close();
             s.close();

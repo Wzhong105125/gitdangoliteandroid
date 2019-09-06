@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.Toast;
 
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -74,6 +75,5 @@ public class Main2Activity extends AppCompatActivity {
         integrator.setBarcodeImageEnabled(false);
         integrator.setOrientationLocked(false);
         integrator.initiateScan();
-
     }
 }
