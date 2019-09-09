@@ -13,6 +13,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.Build;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyPermanentlyInvalidatedException;
@@ -31,6 +32,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -39,6 +41,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -52,7 +57,10 @@ import java.security.UnrecoverableEntryException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.HashMap;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -95,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
     private String KEY_NAME = "AndroidKey";
 
 
-    private String encryptedread,decryptedread;
+    public static String  encryptedread = null;
 
     private static final String File_Name = "Example.txt";
 
@@ -142,12 +150,13 @@ public class MainActivity extends AppCompatActivity {
         newread.setOnStringChangeListener(new OnStringChangeListener() {
             @Override
             public void onStringChanged(String newStringvalue) {
-                Log.v("ONStringChanged","EZ"+newStringvalue);
+                Log.v("information",Information);
                 File file = new File(MainActivity.this.getFilesDir(),"StoreKey");
                 if(!file.exists())
                     file.mkdir();
-                if(Information == "C"){
+                if(Information.equals("C")){
                     try {
+                        Log.v("get public",newStringvalue);
                         File gpxfile = new File(file,"publickey");
                         FileWriter fw = new FileWriter(gpxfile);
                         fw.append(Read);
@@ -161,7 +170,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         File gpxfile = new File(file,"publickey");
                         StringBuilder text = new StringBuilder();
-                        BufferedReader br = new BufferedReader(new FileReader(file));
+                        BufferedReader br = new BufferedReader(new FileReader(gpxfile));
                         String line;
                         while ((line = br.readLine()) != null) {
                             text.append(line);
@@ -171,6 +180,11 @@ public class MainActivity extends AppCompatActivity {
                         Log.v("read file","read"+publickey);
                         EncryptRead();
                         br.close();
+                        Information = "K";
+                        SystemClock.sleep(1000);
+                        MessageSender messageSender2 = new MessageSender();
+                        messageSender2.execute(ip,port);
+                        Log.v("message sender","execute twice");
                     }catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (IOException e) {
@@ -224,6 +238,53 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void EncryptRead() {
+        int modstart= publickey.indexOf("<Modulus>")+9;
+        int modend = publickey.indexOf("</Modulus>");
+        int exstart = publickey.indexOf("<Exponent>")+10;
+        int exend = publickey.indexOf("</Exponent>");
+        String mod = publickey.substring(modstart,modend);
+        String ex = publickey.substring(exstart,exend);
+        Log.v("mod",mod);
+        Log.v("exponent",ex);
+        BigInteger modulus = new BigInteger(1,Base64.decode(mod,Base64.DEFAULT));
+        BigInteger exponent = new BigInteger(1,Base64.decode(ex,Base64.DEFAULT));
+        PublicKey pubKey;
+        byte[] cipherData;
+        try {
+            pubKey = KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(modulus,exponent));
+            Log.v("pubkey",pubKey.toString());
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/NoPadding");
+            rsaCipher.init(Cipher.ENCRYPT_MODE, pubKey);
+            int length = Read.getBytes().length,offset = 0;
+            byte[] cache,Readbyte = Read.getBytes();
+            int MAXENCRYPTSIZE = 117,MAXDECRYPTSIZE = 128;
+            ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+            int i = 0;
+            while (length - offset > 0) {
+                if (length - offset > MAXENCRYPTSIZE) {
+                    cache = cipher.doFinal(Readbyte, offset, MAXENCRYPTSIZE);
+                } else {
+                    cache = cipher.doFinal(Readbyte, offset, length - offset);
+                }
+                outStream.write(cache, 0, cache.length);
+                i++;
+                offset = i * MAXENCRYPTSIZE;
+            }
+            encryptedread = new String(outStream.toByteArray());
+            Log.v("encrypted random",encryptedread);
+            /*
+            cipherData = rsaCipher.doFinal(Read.getBytes());
+            encryptedread = new String(cipherData);
+            Log.v("encrypted random",encryptedread);
+            */
+
+        }
+        catch (InvalidKeySpecException e) {}
+        catch (NoSuchAlgorithmException e) {}
+        catch (InvalidKeyException e) {}
+        catch (NoSuchPaddingException e) {}
+        catch (BadPaddingException e) {}
+        catch (IllegalBlockSizeException e) {}
 
     }
 
