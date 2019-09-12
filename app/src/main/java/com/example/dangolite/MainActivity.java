@@ -42,6 +42,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
@@ -104,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     public static String  encryptedread = null;
-
+    public byte[] result;
     private static final String File_Name = "Example.txt";
 
  //   public String   android_id = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
@@ -249,42 +250,30 @@ public class MainActivity extends AppCompatActivity {
         BigInteger modulus = new BigInteger(1,Base64.decode(mod,Base64.DEFAULT));
         BigInteger exponent = new BigInteger(1,Base64.decode(ex,Base64.DEFAULT));
         PublicKey pubKey;
-        byte[] cipherData;
-        try {
-            pubKey = KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(modulus,exponent));
-            Log.v("pubkey",pubKey.toString());
-            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/NoPadding");
+        byte[] cipherdata;
+        try{
+            pubKey = KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(modulus, exponent));
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             rsaCipher.init(Cipher.ENCRYPT_MODE, pubKey);
-            int length = Read.getBytes().length,offset = 0;
-            byte[] cache,Readbyte = Read.getBytes();
-            int MAXENCRYPTSIZE = 117,MAXDECRYPTSIZE = 128;
-            ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-            int i = 0;
-            while (length - offset > 0) {
-                if (length - offset > MAXENCRYPTSIZE) {
-                    cache = cipher.doFinal(Readbyte, offset, MAXENCRYPTSIZE);
-                } else {
-                    cache = cipher.doFinal(Readbyte, offset, length - offset);
-                }
-                outStream.write(cache, 0, cache.length);
-                i++;
-                offset = i * MAXENCRYPTSIZE;
-            }
-            encryptedread = new String(outStream.toByteArray());
-            Log.v("encrypted random",encryptedread);
-            /*
-            cipherData = rsaCipher.doFinal(Read.getBytes());
-            encryptedread = new String(cipherData);
-            Log.v("encrypted random",encryptedread);
-            */
-
+            cipherdata = rsaCipher.doFinal(Read.getBytes("UTF-8"));
+            encryptedread =  new String(Base64.encode(cipherdata,Base64.DEFAULT ));
+            result = cipherdata;
+            Log.v("encrypted:",encryptedread);
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        } catch (InvalidKeySpecException e) {
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            e.printStackTrace();
+        } catch (IllegalBlockSizeException e) {
+            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
-        catch (InvalidKeySpecException e) {}
-        catch (NoSuchAlgorithmException e) {}
-        catch (InvalidKeyException e) {}
-        catch (NoSuchPaddingException e) {}
-        catch (BadPaddingException e) {}
-        catch (IllegalBlockSizeException e) {}
 
     }
 
