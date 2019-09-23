@@ -12,6 +12,7 @@ import android.app.KeyguardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
+import android.icu.util.RangeValueIterator;
 import android.os.Build;
 import android.os.SystemClock;
 import android.provider.Settings;
@@ -32,6 +33,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -44,21 +46,26 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableEntryException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
@@ -69,9 +76,15 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
 import androidx.core.content.ContextCompat;
 import android.system.Os;
 
+import org.w3c.dom.Element;
+import org.xml.sax.SAXException;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -92,9 +105,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView mHeadingLabel;
     private ImageView mFingerprintImage;
     public TextView mParaLabel;
-    public  static String  ip,port;
-    public static String Information,Read,publickey;
+    public  static String  ip,port,privatekey;
+    public static String Information,Read,publickey,filename,random,hashrandom,encryptedrandom,sendmessage,signrandom;
     static ObservableString newread = new ObservableString();
+    static ObservableString newInformation = new ObservableString();
 
     private FingerprintManager fingerprintManager;
     private KeyguardManager keyguardManager;
@@ -125,12 +139,10 @@ public class MainActivity extends AppCompatActivity {
             port = data.getStringExtra("port");
 
         }
-
         for (int toasttime=0; toasttime < 3; toasttime++)
         {
             Toast.makeText(this, "Information"+Information+"ip:"+ip+" port:"+port, Toast.LENGTH_LONG).show();
         }
-
 
 
         super.onActivityResult(requestCode, resultCode, data);
@@ -144,59 +156,24 @@ public class MainActivity extends AppCompatActivity {
         mHeadingLabel = findViewById(R.id.headingLabel);
         mFingerprintImage =  findViewById(R.id.fingerprintimage);
         mParaLabel = findViewById(R.id.paraLabel);
+        newInformation.set(null);
+        newInformation.setOnStringChangeListener(new OnStringChangeListener() {
+            @Override
+            public void onStringChanged(String stringvalue) {
+                Log.v("new information",stringvalue);
+                if(stringvalue.equals("L")){
+                    privatekey = readprivateket();
+                    Log.v("main test","information:"+Information+"  ip:"+ip+"  port:"+port+"  random:"+random);
+                    hashrandom = hash(random);
+                    encryptedrandom = encrypt(hashrandom);
+ //                   sendmessage = combine(random,encryptedrandom);
+                    signrandom = sign(random);
+                }
+            }
+        });
         Intent goScanner = new Intent();
         goScanner.setClass(MainActivity.this , Main2Activity.class);
         startActivity(goScanner);
-        newread.set(null);
-        newread.setOnStringChangeListener(new OnStringChangeListener() {
-            @Override
-            public void onStringChanged(String newStringvalue) {
-                Log.v("information",Information);
-                File file = new File(MainActivity.this.getFilesDir(),"StoreKey");
-                if(!file.exists())
-                    file.mkdir();
-                if(Information.equals("C")){
-                    try {
-                        Log.v("get public",newStringvalue);
-                        File gpxfile = new File(file,"publickey");
-                        FileWriter fw = new FileWriter(gpxfile);
-                        fw.append(Read);
-                        fw.flush();
-                        fw.close();
-                        Log.v("file writer","write file"+Read);
-                    }catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }else{
-                    try {
-                        File gpxfile = new File(file,"publickey");
-                        StringBuilder text = new StringBuilder();
-                        BufferedReader br = new BufferedReader(new FileReader(gpxfile));
-                        String line;
-                        while ((line = br.readLine()) != null) {
-                            text.append(line);
-                            text.append('\n');
-                        }
-                        publickey = text.toString();
-                        Log.v("read file","read"+publickey);
-                        EncryptRead();
-                        br.close();
-                        Information = "K";
-                        SystemClock.sleep(1000);
-                        MessageSender messageSender2 = new MessageSender();
-                        messageSender2.execute(ip,port);
-                        Log.v("message sender","execute twice");
-                    }catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-
-            }
-        });
-
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 
@@ -236,6 +213,133 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
+    }
+
+    private String sign(String random) {
+        byte[] cipherdata;
+        String encryptedtmp;
+        DocumentBuilder db = null;
+        try {
+            db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Element el = db.parse(new ByteArrayInputStream(privatekey.getBytes())).getDocumentElement();
+            String[] names = {"Modulus", "Exponent", "D", "P", "Q", "DP", "DQ", "InverseQ"};
+            BigInteger[] vals = new BigInteger [names.length];
+            for( int i = 0; i < names.length; i++ ){
+                String v = el.getElementsByTagName(names[i]).item(0).getTextContent();
+                vals[i] = new BigInteger(1, Base64.decode(v,Base64.DEFAULT));
+            }
+            PrivateKey prikey = KeyFactory.getInstance("RSA").generatePrivate(new RSAPrivateCrtKeySpec(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7]) );
+            Signature s = Signature.getInstance("SHA256withRSA");
+            s.initSign(prikey);
+            s.update(random.getBytes());
+            byte[] signature = s.sign();
+            String result = Base64.encodeToString(signature, Base64.DEFAULT);
+            Log.v("signdata",result);
+            return result;
+        } catch (ParserConfigurationException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        } catch (SignatureException e) {
+            e.printStackTrace();
+        } catch (SAXException e) {
+            e.printStackTrace();
+        } catch (InvalidKeySpecException e) {
+            e.printStackTrace();
+        }
+
+        return "";
+    }
+
+    private String combine(String random, String encryptedrandom) {
+        String concattmp = random+"<hash>"+encryptedrandom;
+        return concattmp;
+    }
+
+    private String encrypt(String hashrandom) {
+        try {
+            byte[] cipherdata;
+            String encryptedtmp;
+            DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Element el = db.parse(new ByteArrayInputStream(privatekey.getBytes())).getDocumentElement();
+            String[] names = {"Modulus", "Exponent", "D", "P", "Q", "DP", "DQ", "InverseQ"};
+            BigInteger[] vals = new BigInteger [names.length];
+            for( int i = 0; i < names.length; i++ ){
+                String v = el.getElementsByTagName(names[i]).item(0).getTextContent();
+                vals[i] = new BigInteger(1, Base64.decode(v,Base64.DEFAULT));
+            }
+            PrivateKey prikey = KeyFactory.getInstance("RSA").generatePrivate(new RSAPrivateCrtKeySpec(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7]) );
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            rsaCipher.init(Cipher.ENCRYPT_MODE, prikey);
+            cipherdata = rsaCipher.doFinal(hashrandom.getBytes("UTF-8"));
+            encryptedtmp =  new String(Base64.encode(cipherdata,Base64.DEFAULT ));
+            Log.v("encrypted hashrandom:",encryptedtmp);
+            return encryptedtmp;
+
+        } catch (ParserConfigurationException e) {
+            e.printStackTrace();
+        } catch (SAXException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (InvalidKeySpecException e) {
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        } catch (IllegalBlockSizeException e) {
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            e.printStackTrace();
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    private String hash(String random) {
+        try {
+            MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            digest.update(random.getBytes(Charset.forName("US-ASCII")),0,random.length());
+            byte[] magnitude = digest.digest();
+            BigInteger bi = new BigInteger(1, magnitude);
+            String hash = String.format("%0" + (magnitude.length << 1) + "x", bi);
+            Log.v("hash random",hash);
+            return hash;
+        }catch (NoSuchAlgorithmException e){
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+
+    private String readprivateket() {
+        File file = new File(MainActivity.this.getFilesDir(),"StoreKey");
+        File gpxfile = new File(file,filename);
+        StringBuilder text = new StringBuilder();
+        BufferedReader br = null;
+        String pp = null;
+        try {
+            br = new BufferedReader(new FileReader(gpxfile));
+            String line;
+            while ((line = br.readLine()) != null) {
+                text.append(line);
+                text.append('\n');
+            }
+            pp = text.toString();
+            Log.v("read file","read"+pp);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return pp;
     }
 
     private void EncryptRead() {
@@ -365,7 +469,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-
+    
 
 
 }

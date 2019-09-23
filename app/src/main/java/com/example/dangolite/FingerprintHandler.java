@@ -57,24 +57,9 @@ public class FingerprintHandler extends FingerprintManager.AuthenticationCallbac
 
     @Override
     public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
-        try{
-            String information = MainActivity.Information;
-            String ip = MainActivity.ip;
-            String port = MainActivity.port;
-            Log.e(" ip port value","ip:"+ip+"port:"+port+"information"+information);
             this.update("You can now access the app.", true);
             MessageSender messageSender = new MessageSender();
-            messageSender.execute(ip,port);
-            Log.v("messageSender","messageSender execute~");
-
-
-        }catch (NumberFormatException e){
-
-            this.update("Error:Please open QRcode Scanner for IPaddress",false);
-        }
-
-
-
+            messageSender.execute(MainActivity.ip,MainActivity.port);
     }
 
     private void update(String s, boolean b) {

@@ -7,14 +7,19 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+
 public class Main2Activity extends AppCompatActivity {
 
-    String Information,ip,port;
+    String Information,ip,port,privatekey,filename,random;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
@@ -36,24 +41,49 @@ public class Main2Activity extends AppCompatActivity {
             }
             else
             {
-                Toast.makeText(this,result.getContents(),Toast.LENGTH_SHORT).show();
+           //     Toast.makeText(this,result.getContents(),Toast.LENGTH_SHORT).show();
                 String ScanAnswer = result.getContents().toString();
-
-                int ipstart = ScanAnswer.indexOf(":")+1 ;
-                int ipend = ScanAnswer.indexOf("o")-1;
-                int portstart = ScanAnswer.indexOf("t")+2;
-                int portend = ScanAnswer.length();
                 Information = ScanAnswer.substring(0,1);
-                ip = ScanAnswer.substring(ipstart,ipend);
-                port = ScanAnswer.substring(portstart,portend);
                 MainActivity.Information = Information;
-                MainActivity.ip = ip;
-                MainActivity.port = port;
-                Intent returnvalue  = getIntent();
-                returnvalue.putExtra("Information",Information);
-                returnvalue.putExtra("ip",ip);
-                returnvalue.putExtra("port",port);
-                setResult(Activity.RESULT_OK,returnvalue);
+                if(Information.equals("C") || Information.equals("c")){
+                    int keystart = ScanAnswer.indexOf(":")+1;
+                    int keyend = ScanAnswer.length();
+                    filename = ScanAnswer.substring(1,6);
+                    privatekey = ScanAnswer.substring(keystart,keyend);
+                    MainActivity.privatekey = privatekey;
+                    File file = new File(Main2Activity.this.getFilesDir(),"StoreKey");
+                    File gpxfile = new File(file,filename);
+                    FileWriter fw = null;
+                    try {
+                        fw = new FileWriter(gpxfile);
+                        fw.append(privatekey);
+                        fw.flush();
+                        fw.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    Log.v("file writer","write file"+privatekey);
+                }else{
+                    int ipstart = ScanAnswer.indexOf("ip:")+3;
+                    int ipend = ScanAnswer.indexOf("port:");
+                    int portstart = ScanAnswer.indexOf("port:")+5;
+                    int portend = ScanAnswer.length();
+                    filename = ScanAnswer.substring(1,6);
+                    random = ScanAnswer.substring(ScanAnswer.indexOf("random:")+7,ScanAnswer.indexOf("random:")+23);
+                    ip = ScanAnswer.substring(ipstart,ipend);
+                    port = ScanAnswer.substring(portstart,portend);
+                    MainActivity.ip = ip;
+                    MainActivity.port = port;
+                    MainActivity.filename = filename;
+                    MainActivity.random = random;
+         //           Log.v("test","information:"+Information+"  ip:"+ip+"  port:"+port+"  random:"+random);
+                    Intent returnvalue  = getIntent();
+                    returnvalue.putExtra("Information",Information);
+                    returnvalue.putExtra("ip",ip);
+                    returnvalue.putExtra("port",port);
+                    setResult(Activity.RESULT_OK,returnvalue);
+                    MainActivity.newInformation.set(Information);
+                }
                 finish();
             }
         }
