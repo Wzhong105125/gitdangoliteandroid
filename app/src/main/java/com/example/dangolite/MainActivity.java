@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.v("main test","information:"+Information+"  ip:"+ip+"  port:"+port+"  random:"+random);
                     hashrandom = hash(random);
                     encryptedrandom = encrypt(hashrandom);
- //                   sendmessage = combine(random,encryptedrandom);
+                    sendmessage = combine(random,encryptedrandom);
                     signrandom = sign(random);
                 }
             }
@@ -256,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String combine(String random, String encryptedrandom) {
-        String concattmp = random+"<hash>"+encryptedrandom;
+        String concattmp = random+encryptedrandom;
         return concattmp;
     }
 
