@@ -9,6 +9,7 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.KeyguardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
@@ -72,10 +73,12 @@ import java.util.HashMap;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -105,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView mHeadingLabel;
     private ImageView mFingerprintImage;
     public TextView mParaLabel;
-    public  static String  ip,port,privatekey;
+    public  static String  ip,port,privatekey,testprivatekey;
     public static String Information,Read,publickey,filename,random,hashrandom,encryptedrandom,sendmessage,signrandom;
     static ObservableString newread = new ObservableString();
     static ObservableString newInformation = new ObservableString();
@@ -162,11 +165,12 @@ public class MainActivity extends AppCompatActivity {
             public void onStringChanged(String stringvalue) {
                 Log.v("new information",stringvalue);
                 if(stringvalue.equals("L")){
-                    privatekey = readprivateket();
+                    privatekey = getKeyStoreString(MainActivity.this);
+                    Log.v("privatekey",privatekey);
                     Log.v("main test","information:"+Information+"  ip:"+ip+"  port:"+port+"  random:"+random);
-                    hashrandom = hash(random);
-                    encryptedrandom = encrypt(hashrandom);
-                    sendmessage = combine(random,encryptedrandom);
+     //               hashrandom = hash(random);
+     //               encryptedrandom = encrypt(hashrandom);
+     //               sendmessage = combine(random,encryptedrandom);
                     signrandom = sign(random);
                 }
             }
@@ -214,6 +218,45 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
+
+    private String getKeyStoreString(Context context) {
+        KeyStore keyStore;
+        String recoveredSecret = "";
+        String filesDirectory = context.getFilesDir().getAbsolutePath();
+        String encryptedDataFilePath = filesDirectory + "/StoreKey"+File.separator + filename;
+        try {
+            keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            SecretKey secretKey = (SecretKey)
+                    keyStore.getKey("phrase", null);
+            if (secretKey == null) throw new RuntimeException("secretKey is null");
+
+            Cipher outCipher;
+            outCipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+            outCipher.init(Cipher.DECRYPT_MODE, secretKey, new IvParameterSpec(
+                    new byte[outCipher.getBlockSize()]));
+
+            CipherInputStream cipherInputStream = new CipherInputStream(
+                    new FileInputStream(encryptedDataFilePath), outCipher);
+            byte[] roundTrippedBytes = new byte[1000]; //TODO: dynamically resize as we get more data
+            int index = 0;
+            int nextByte;
+            while ((nextByte = cipherInputStream.read()) != -1) {
+                roundTrippedBytes[index] = (byte) nextByte;
+                index++;
+            }
+            recoveredSecret = new String(roundTrippedBytes, 0, index, "UTF-8");
+            Log.e("tag", "round tripped string = " + recoveredSecret);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        String cover = "<RSAKeyValue><Modulus>";
+        recoveredSecret = cover+recoveredSecret.substring(21,recoveredSecret.length());
+        Log.e("tah", "recovered: " + recoveredSecret);
+        return recoveredSecret;
+    }
+
+
 
     private String sign(String random) {
         byte[] cipherdata;
@@ -342,44 +385,7 @@ public class MainActivity extends AppCompatActivity {
         return pp;
     }
 
-    private void EncryptRead() {
-        int modstart= publickey.indexOf("<Modulus>")+9;
-        int modend = publickey.indexOf("</Modulus>");
-        int exstart = publickey.indexOf("<Exponent>")+10;
-        int exend = publickey.indexOf("</Exponent>");
-        String mod = publickey.substring(modstart,modend);
-        String ex = publickey.substring(exstart,exend);
-        Log.v("mod",mod);
-        Log.v("exponent",ex);
-        BigInteger modulus = new BigInteger(1,Base64.decode(mod,Base64.DEFAULT));
-        BigInteger exponent = new BigInteger(1,Base64.decode(ex,Base64.DEFAULT));
-        PublicKey pubKey;
-        byte[] cipherdata;
-        try{
-            pubKey = KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(modulus, exponent));
-            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            rsaCipher.init(Cipher.ENCRYPT_MODE, pubKey);
-            cipherdata = rsaCipher.doFinal(Read.getBytes("UTF-8"));
-            encryptedread =  new String(Base64.encode(cipherdata,Base64.DEFAULT ));
-            result = cipherdata;
-            Log.v("encrypted:",encryptedread);
-        } catch (NoSuchPaddingException e) {
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        } catch (InvalidKeyException e) {
-            e.printStackTrace();
-        } catch (InvalidKeySpecException e) {
-            e.printStackTrace();
-        } catch (BadPaddingException e) {
-            e.printStackTrace();
-        } catch (IllegalBlockSizeException e) {
-            e.printStackTrace();
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
 
-    }
 
 
     @TargetApi(Build.VERSION_CODES.M)
@@ -419,8 +425,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
             throw new RuntimeException("Failed to get Cipher", e);
         }
-
-
         try {
 
             keyStore.load(null);

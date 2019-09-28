@@ -3,13 +3,18 @@ package com.example.dangolite;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.security.KeyPairGeneratorSpec;
 import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
+import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -30,15 +35,19 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.UnrecoverableEntryException;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Calendar;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import javax.security.auth.x500.X500Principal;
 
 public class Main2Activity extends AppCompatActivity {
@@ -46,8 +55,10 @@ public class Main2Activity extends AppCompatActivity {
     String Information,ip,port,privatekey,filename,random;
     private static final String AndroidKeyStore = "AndroidKeyStore";
     private static final String AES_MODE = "AES/GCM/NoPadding";
-    private KeyStore ks;
-    String alias = "key3";
+    private KeyStore keyStore;
+    private String KEY_NAME = "AndoridKey1",encryptprivatekey;
+    private byte[] encryptedBytes;
+    private Cipher cipher;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
@@ -79,7 +90,8 @@ public class Main2Activity extends AppCompatActivity {
                     filename = ScanAnswer.substring(1,6);
                     privatekey = ScanAnswer.substring(keystart,keyend);
                     MainActivity.privatekey = privatekey;
-                    File file = new File(Main2Activity.this.getFilesDir(),"StoreKey");
+                    Boolean filestore = setKeyStoreString(privatekey,this);
+/*                    File file = new File(Main2Activity.this.getFilesDir(),"StoreKey");
                     File gpxfile = new File(file,filename);
                     FileWriter fw = null;
                     try {
@@ -90,7 +102,7 @@ public class Main2Activity extends AppCompatActivity {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                    Log.v("file writer","write file"+privatekey);
+ */                   Log.v("file writer","write file"+privatekey);
                 }else{
                     int ipstart = ScanAnswer.indexOf("ip:")+3;
                     int ipend = ScanAnswer.indexOf("port:");
@@ -121,6 +133,53 @@ public class Main2Activity extends AppCompatActivity {
         }
     }
 
+    private boolean setKeyStoreString(String privatekey,Context context) {
+        if (privatekey == null) return false;
+        if (privatekey.length() == 0) return false;
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            int nBefore = keyStore.size();
+            // Create the keys if necessary
+            if (!keyStore.containsAlias("phrase")) {
+                KeyGenerator generator = KeyGenerator.getInstance(
+                        KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder("phrase", KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                        .setKeySize(256)
+                        .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                        .setUserAuthenticationValidityDurationSeconds(-1)
+                        .setRandomizedEncryptionRequired(false)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                        .setUserAuthenticationRequired(false)
+                        .build();
+                generator.init(spec);
+                generator.generateKey();
+            }
+            int nAfter = keyStore.size();
+            Log.v("tag", "Before = " + nBefore + " After = " + nAfter);
+
+
+            String filesDirectory = context.getFilesDir().getAbsolutePath();
+            String encryptedDataFilePath = filesDirectory +"/StoreKey"+ File.separator + filename;
+            SecretKey secret = (SecretKey) keyStore.getKey("phrase", null);
+            Cipher inCipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+            inCipher.init(Cipher.ENCRYPT_MODE, secret);
+            CipherOutputStream cipherOutputStream = new CipherOutputStream(
+                    new FileOutputStream(encryptedDataFilePath), inCipher);
+            byte[] bytesToStore = privatekey.getBytes("UTF-8");
+
+            cipherOutputStream.write(bytesToStore);
+            try {
+                cipherOutputStream.close();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+            return true;
+        } catch (Exception e) {
+            Log.e("tag", Log.getStackTraceString(e));
+        }
+        return false;
+    }
 
 
     @Override
@@ -135,6 +194,40 @@ public class Main2Activity extends AppCompatActivity {
         integrator.setBarcodeImageEnabled(false);
         integrator.setOrientationLocked(false);
         integrator.initiateScan();
+    }
+
+    @TargetApi(Build.VERSION_CODES.M)
+    private void generateKey() {
+
+        try {
+
+            keyStore = KeyStore.getInstance("AndroidKeyStore");
+            KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+            keyStore.load(null);
+            keyGenerator.init(new
+                    KeyGenParameterSpec.Builder(KEY_NAME,
+                    KeyProperties.PURPOSE_ENCRYPT |
+                            KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                    .setUserAuthenticationRequired(true)
+                    .setEncryptionPaddings(
+                            KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                    .build());
+            keyGenerator.generateKey();
+
+        } catch (KeyStoreException | IOException | CertificateException
+                | NoSuchAlgorithmException | InvalidAlgorithmParameterException
+                | NoSuchProviderException e) {
+
+            e.printStackTrace();
+
+        }
+
+    }
+
+    private void encrypt(){
+
     }
 
 
