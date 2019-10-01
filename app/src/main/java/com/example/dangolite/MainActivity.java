@@ -223,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
         KeyStore keyStore;
         String recoveredSecret = "";
         String filesDirectory = context.getFilesDir().getAbsolutePath();
-        String encryptedDataFilePath = filesDirectory + "/StoreKey"+File.separator + filename;
+        String encryptedDataFilePath = filesDirectory +File.separator + filename;
         try {
             keyStore = KeyStore.getInstance("AndroidKeyStore");
             keyStore.load(null);

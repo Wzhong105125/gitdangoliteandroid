@@ -160,7 +160,7 @@ public class Main2Activity extends AppCompatActivity {
 
 
             String filesDirectory = context.getFilesDir().getAbsolutePath();
-            String encryptedDataFilePath = filesDirectory +"/StoreKey"+ File.separator + filename;
+            String encryptedDataFilePath = filesDirectory + File.separator + filename;
             SecretKey secret = (SecretKey) keyStore.getKey("phrase", null);
             Cipher inCipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
             inCipher.init(Cipher.ENCRYPT_MODE, secret);
